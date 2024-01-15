@@ -28,10 +28,10 @@ name = "tinyllama_1b"
 out_dir = Path("out") / name
 
 # Hyperparameters
-num_of_devices = 8
-global_batch_size = 512
+num_of_devices = 2
+global_batch_size = 8
 learning_rate = 4e-4
-micro_batch_size = 8
+micro_batch_size = 1
 max_step = 715256 * 2
 warmup_steps = 2000
 log_step_interval = 10
@@ -53,8 +53,6 @@ assert gradient_accumulation_steps > 0
 warmup_iters = warmup_steps * gradient_accumulation_steps
 
 
-
-
 max_iters = max_step * gradient_accumulation_steps
 lr_decay_iters = max_iters
 log_iter_interval = log_step_interval * gradient_accumulation_steps
@@ -62,12 +60,15 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Treat all dataset equally by their size. If you want to use a different weight for a dataset, add it to the list with the weight.
 train_data_config = [
-    ("train_slim", 0.693584),
-    ("train_star", 0.306416),
+    ("arxiv_sample", 1.0),
+    ("stackexchange_sample", 1.0),
+    # ("train_slim", 0.693584),
+    # ("train_star", 0.306416),
 ]
 
 val_data_config = [
-    ("validation", 1.0),
+    ("cc_2019-30_sample", 1.0),
+    # ("validation", 1.0),
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
@@ -76,7 +77,7 @@ wandb_logger = WandbLogger()
 
 
 def setup(
-    devices: int = 8,
+    devices: int = 2,
     train_data_dir: Path = Path("data/redpajama_sample"),
     val_data_dir: Optional[Path] = None,
     precision: Optional[str] = None,
@@ -104,6 +105,8 @@ def setup(
     fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
     fabric.print(hparams)
     #fabric.launch(main, train_data_dir, val_data_dir, resume)
+    # import pdb
+    # pdb.set_trace()
     main(fabric, train_data_dir, val_data_dir, resume)
 
 
@@ -215,7 +218,6 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
             param_group["lr"] = lr
 
         iter_t0 = time.perf_counter()
-
         input_ids = train_data[:, 0 : model.config.block_size].contiguous()
         targets = train_data[:, 1 : model.config.block_size + 1].contiguous()
         is_accumulating = (state["iter_num"] + 1) % gradient_accumulation_steps != 0

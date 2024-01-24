@@ -42,5 +42,5 @@ lightning run model \
     --devices=4 \
     --num-nodes=1 \
     pretrain/tinyllama.py \
-    --train_data_dir /workspace/Dataset/decompilation-dataset/assembly-bin  \
-    --val_data_dir /workspace/Dataset/decompilation-dataset/assembly-bin
+    --train_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-assembly-g-O2-bin  \
+    --val_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-assembly-g-O2-bin

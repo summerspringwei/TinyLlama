@@ -29,9 +29,9 @@ out_dir = Path("out") / name
 
 # Hyperparameters
 num_of_devices = 4
-global_batch_size = 64
+global_batch_size = 256
 learning_rate = 4e-4
-micro_batch_size = 4
+micro_batch_size = 16
 max_step = 7152 * 2
 warmup_steps = 2000
 log_step_interval = 10
@@ -85,6 +85,7 @@ def setup(
     precision: Optional[str] = None,
     tpu: bool = False,
     resume: Union[bool, Path] = False,
+    init_pth_weights: Optional[Path] = None,
 ) -> None:
     precision = precision or get_default_supported_precision(training=True, tpu=tpu)
 
@@ -109,10 +110,10 @@ def setup(
     #fabric.launch(main, train_data_dir, val_data_dir, resume)
     # import pdb
     # pdb.set_trace()
-    main(fabric, train_data_dir, val_data_dir, resume)
+    main(fabric, train_data_dir, val_data_dir, resume, init_pth_weights)
 
 
-def main(fabric, train_data_dir, val_data_dir, resume):
+def main(fabric, train_data_dir, val_data_dir, resume, init_pth_weights):
     monitor = Monitor(fabric, window_size=2, time_unit="seconds", log_iter_interval=log_iter_interval)
 
     if fabric.global_rank == 0:
@@ -139,8 +140,12 @@ def main(fabric, train_data_dir, val_data_dir, resume):
     t0 = time.perf_counter()
     with fabric.init_module(empty_init=False):
         model = GPT(config)
-        model.apply(partial(model._init_weights ,n_layer=config.n_layer))
- 
+        if init_pth_weights is not None:
+            init_state = torch.load(init_pth_weights, map_location="cuda")
+            print(init_state)
+            model.load_state_dict(init_state)
+        else:
+            model.apply(partial(model._init_weights ,n_layer=config.n_layer))
 
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
     fabric.print(f"Total parameters {num_parameters(model):,}")
@@ -151,8 +156,8 @@ def main(fabric, train_data_dir, val_data_dir, resume):
     )
     # optimizer = FusedAdam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2),adam_w_mode=True)
     optimizer = fabric.setup_optimizers(optimizer)
-
-    state = {"model": model, "optimizer": optimizer, "hparams": hparams, "iter_num": 0, "step_count": 0}
+    scaler = torch.cuda.amp.GradScaler()
+    state = {"model": model, "optimizer": optimizer, "hparams": hparams, "iter_num": 0, "step_count": 0, "scaler": scaler}
 
     if resume is True:
         resume = sorted(out_dir.glob("*.pth"))[-1]
@@ -200,6 +205,8 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
     curr_iter = 0
             
     loss_func = FusedCrossEntropyLoss()
+    scaler = state["scaler"]
+
     for  train_data in train_dataloader:
         # resume loader state. This is not elegant but it works. Should rewrite it in the future.
         if resume:
@@ -224,10 +231,11 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
         targets = train_data[:, 1 : model.config.block_size + 1].contiguous()
         is_accumulating = (state["iter_num"] + 1) % gradient_accumulation_steps != 0
         with fabric.no_backward_sync(model, enabled=is_accumulating):
-            logits = model(input_ids)
-            loss = loss_func(logits, targets)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits = model(input_ids)
+                loss = loss_func(logits, targets)
             # loss = chunked_cross_entropy(logits, targets, chunk_size=0)
-            fabric.backward(loss / gradient_accumulation_steps)
+            fabric.backward(scaler.scale(loss) / gradient_accumulation_steps)
 
         if not is_accumulating:
             fabric.clip_gradients(model, optimizer, max_norm=grad_clip)

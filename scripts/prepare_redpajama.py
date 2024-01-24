@@ -27,7 +27,7 @@ filenames_sample = [
     # "stackexchange_sample.jsonl",
     # "wikipedia_sample.jsonl",
     "AnghaBench-assembly-g-O2.json",
-    "AnghaBench-assembly-g-O0.json"
+    # "AnghaBench-assembly-g-O0.json"
 ]
 
 filename_sets = {
@@ -73,7 +73,7 @@ def prepare_sample(
             dtype="auto",
             vocab_size=tokenizer.vocab_size,
         )
-
+        seq_len_list = []
         print(f"Processing {name}")
         max_seq_len = 0
         with open(filepath, encoding="utf-8") as f:
@@ -83,11 +83,22 @@ def prepare_sample(
                     tmp = json.loads(tmp)
                 text = tmp["text"]
                 text_ids = tokenizer.encode(text)
+                seq_len_list.append(len(text_ids))
                 if len(text_ids) > max_seq_len:
                     max_seq_len = len(text_ids)
                 builder.add_array(np.array(text_ids, dtype=builder.dtype))
         print("Max seq len: ", max_seq_len)
         builder.write_reminder()
+        # Save the list of seq_len
+        seq_len_list = np.array(seq_len_list)
+        np.save(destination_path / f"{prefix}_seq_len.npy", seq_len_list)
+        # Draw the histogram of seq_len
+        import matplotlib.pyplot as plt
+        plt.hist(seq_len_list, bins=100)
+        plt.title('Distribution of Sentence Lengths')
+        plt.xlabel('Sentence Length')
+        plt.ylabel('Frequency')
+        plt.savefig(f'histogram_{prefix}.png')
 
 
 def prepare_full(

@@ -16,9 +16,10 @@ python scripts/prepare_starcoder.py --source_path data/starcoderdata/ --tokenize
 
 python scripts/convert_lit_checkpoint.py --out_dir /data/TinyLlama/out/tiny_LLaMA_1b/ --checkpoint_name iter-100000-ckpt.pth --model_name tiny_LLaMA_1b
 
+python3 scripts/convert_hf_checkpoint.py --checkpoint_dir path/to/huggingface_model --model_name xxx --dtype float32
 
 python3 scripts/prepare_redpajama.py \
-    --source_path /data/xiachunwei/Dataset/RedPajama-Data-1T-Sample \
+    --source_path /data0/xiachunwei/Dataset/RedPajama-Data-1T-Sample \
     --checkpoint_dir /home/xiachunwei/Dataset/TinyLlama-1.1B-intermediate-step-1431k-3T \
     --destination_path /home/xiachunwei/Dataset/RedPajama-Data-1T-Sample-Bin
 
@@ -38,8 +39,8 @@ lightning run model \
     --node-rank=0  \
     --main-address=127.0.0.1 \
     --accelerator=cuda \
-    --devices=1 \
+    --devices=4 \
     --num-nodes=1 \
-    pretrain/tinyllama.py --devices 1 \
-    --train_data_dir /workspace/Dataset/RedPajama-Data-1T-Sample-Bin  \
-    --val_data_dir /workspace/Dataset/RedPajama-Data-1T-Sample-Bin
+    pretrain/tinyllama.py \
+    --train_data_dir /workspace/Dataset/decompilation-dataset/assembly-bin  \
+    --val_data_dir /workspace/Dataset/decompilation-dataset/assembly-bin

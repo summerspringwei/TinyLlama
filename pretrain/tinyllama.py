@@ -28,16 +28,16 @@ name = "tinyllama_1b"
 out_dir = Path("out") / name
 
 # Hyperparameters
-num_of_devices = 2
-global_batch_size = 8
+num_of_devices = 4
+global_batch_size = 64
 learning_rate = 4e-4
-micro_batch_size = 1
-max_step = 715256 * 2
+micro_batch_size = 4
+max_step = 7152 * 2
 warmup_steps = 2000
 log_step_interval = 10
-eval_iters = 100
-save_step_interval = 5000
-eval_step_interval = 5000
+eval_iters = 10
+save_step_interval = 1000
+eval_step_interval = 1000
 
 
 weight_decay = 1e-1
@@ -60,15 +60,17 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Treat all dataset equally by their size. If you want to use a different weight for a dataset, add it to the list with the weight.
 train_data_config = [
-    ("arxiv_sample", 1.0),
-    ("stackexchange_sample", 1.0),
+    # ("arxiv_sample", 1.0),
+    # ("stackexchange_sample", 1.0),
     # ("train_slim", 0.693584),
     # ("train_star", 0.306416),
+    ("AnghaBench-assembly-g-O2", 1.0),
 ]
 
 val_data_config = [
-    ("cc_2019-30_sample", 1.0),
+    # ("cc_2019-30_sample", 1.0),
     # ("validation", 1.0),
+    ("AnghaBench-assembly-g-O2", 1.0),
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
@@ -77,7 +79,7 @@ wandb_logger = WandbLogger()
 
 
 def setup(
-    devices: int = 2,
+    devices: int = 4,
     train_data_dir: Path = Path("data/redpajama_sample"),
     val_data_dir: Optional[Path] = None,
     precision: Optional[str] = None,
@@ -309,7 +311,8 @@ def create_dataloader(
         filenames = sorted(glob.glob(str(data_dir / f"{prefix}*")))
         random.seed(seed)
         random.shuffle(filenames)
-
+        # import pdb
+        # pdb.set_trace()
         dataset = PackedDataset(
             filenames,
             # n_chunks control the buffer size. 

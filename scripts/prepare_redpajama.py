@@ -15,17 +15,19 @@ import lit_gpt.packed_dataset as packed_dataset
 from lit_gpt import Config, Tokenizer
 
 filenames_sample = [
-    "arxiv_sample.jsonl",
-    "book_sample.jsonl",
-    "c4_sample.jsonl",
-    "cc_2019-30_sample.jsonl",
-    "cc_2020-05_sample.jsonl",
-    "cc_2021-04_sample.jsonl",
-    "cc_2022-05_sample.jsonl",
-    "cc_2023-06_sample.jsonl",
-    "github_sample.jsonl",
-    "stackexchange_sample.jsonl",
-    "wikipedia_sample.jsonl",
+    # "arxiv_sample.jsonl",
+    # "book_sample.jsonl",
+    # "c4_sample.jsonl",
+    # "cc_2019-30_sample.jsonl",
+    # "cc_2020-05_sample.jsonl",
+    # "cc_2021-04_sample.jsonl",
+    # "cc_2022-05_sample.jsonl",
+    # "cc_2023-06_sample.jsonl",
+    # "github_sample.jsonl",
+    # "stackexchange_sample.jsonl",
+    # "wikipedia_sample.jsonl",
+    "AnghaBench-assembly-g-O2.json",
+    "AnghaBench-assembly-g-O0.json"
 ]
 
 filename_sets = {
@@ -73,13 +75,18 @@ def prepare_sample(
         )
 
         print(f"Processing {name}")
-
+        max_seq_len = 0
         with open(filepath, encoding="utf-8") as f:
             for row in tqdm(f):
-                text = json.loads(row)["text"]
+                tmp = json.loads(row)
+                if type(tmp) == str:
+                    tmp = json.loads(tmp)
+                text = tmp["text"]
                 text_ids = tokenizer.encode(text)
+                if len(text_ids) > max_seq_len:
+                    max_seq_len = len(text_ids)
                 builder.add_array(np.array(text_ids, dtype=builder.dtype))
-
+        print("Max seq len: ", max_seq_len)
         builder.write_reminder()
 
 

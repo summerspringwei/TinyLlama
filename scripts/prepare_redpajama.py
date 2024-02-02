@@ -26,8 +26,9 @@ filenames_sample = [
     # "github_sample.jsonl",
     # "stackexchange_sample.jsonl",
     # "wikipedia_sample.jsonl",
-    "AnghaBench-assembly-g-O2.json",
+    # "AnghaBench-assembly-g-O2.json",
     # "AnghaBench-assembly-g-O0.json"
+    "AnghaBench.json"
 ]
 
 filename_sets = {

@@ -35,12 +35,38 @@ lightning run model \
     --val_data_dir /home/xiachunwei/Dataset/RedPajama-Data-1T-Sample-Bin
 
 
-lightning run model \
+export CUDA_VISIBLE_DEVICES=2,3 && lightning run model \
     --node-rank=0  \
     --main-address=127.0.0.1 \
     --accelerator=cuda \
-    --devices=4 \
+    --devices=2 \
     --num-nodes=1 \
     pretrain/tinyllama.py \
     --train_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-assembly-g-O2-bin  \
-    --val_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-assembly-g-O2-bin
+    --val_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-assembly-g-O2-bin \
+    --init_pth_weights /workspace/TinyLlama/out/tinyllama_1b/iter-056000-ckpt.pth
+    # --resume True
+
+export CUDA_VISIBLE_DEVICES=2,3 && lightning run model \
+    --node-rank=0  \
+    --main-address=127.0.0.1 \
+    --accelerator=cuda \
+    --devices=2 \
+    --num-nodes=1 \
+    pretrain/tinyllama.py \
+    --train_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-C-bin  \
+    --val_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-C-bin \
+    --init_pth_weights /workspace/TinyLlama/out/tinyllama_1b/iter-056000-ckpt.pth
+
+
+export CUDA_VISIBLE_DEVICES=0,1 && lightning run model \
+    --node-rank=0  \
+    --main-address=127.0.0.1 \
+    --accelerator=cuda \
+    --main-port 29011 \
+    --devices=2 \
+    --num-nodes=1 \
+    pretrain/tinyllama.py \
+    --train_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-C-bin  \
+    --val_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-C-bin \
+    --init_pth_weights /workspace/Dataset/TinyLlama-1.1B-step-50K-105b/lit_model.pth

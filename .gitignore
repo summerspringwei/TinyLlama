@@ -17,3 +17,4 @@ sft/output
 sft/wandb
 tmp.*
 *.png
+*.log

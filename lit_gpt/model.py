@@ -18,6 +18,20 @@ RoPECache = Tuple[torch.Tensor, torch.Tensor]
 KVCache = Tuple[torch.Tensor, torch.Tensor]
 FlashAttention2Available = RequirementCache("flash-attn>=2.0.0.post1")
 
+import logging
+# Set up the logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create a formatter with the desired format
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s')
+
+# Create a handler and set the formatter
+file_handler = logging.FileHandler('example.log')
+file_handler.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(file_handler)
 
 class GPT(nn.Module):
     def __init__(self, config: Config) -> None:
@@ -165,9 +179,11 @@ class Block(nn.Module):
         input_pos: Optional[torch.Tensor] = None,
         kv_cache: Optional[KVCache] = None,
     ) -> Tuple[torch.Tensor, Optional[KVCache]]:
-
+        # logger.info(f"{x.shape} {x.dtype}")
         n_1 = self.norm_1(x)
+        # logger.info(f"{n_1.shape} {n_1.dtype}")
         h, new_kv_cache = self.attn(n_1, rope, max_seq_length, mask, input_pos, kv_cache)
+        # logger.info(f"{h.shape} {h.dtype}")
         if self.config.parallel_residual:
             n_2 = n_1 if self.config.shared_attention_norm else self.norm_2(x)
             x = x + h + self.mlp(n_2)
@@ -226,14 +242,15 @@ class CausalSelfAttention(nn.Module):
         q = q.reshape(B,  T, -1, self.config.head_size)  # (B, T, nh_q, hs)
         k = k.reshape(B,  T, -1, self.config.head_size)  
         v = v.reshape(B,  T, -1, self.config.head_size)  
-
+        
         cos, sin = rope
 
         # apply rope in fp32 significanly stabalize training
         # fused rope expect (batch_size, seqlen, nheads, headdim)
         q = apply_rotary_emb_func(q, cos, sin, False, True)
         k = apply_rotary_emb_func(k, cos, sin, False, True)
-        
+        # logger.info(f"{q.shape} {q.dtype}")
+        # logger.info(f"{v.shape} {v.dtype}")
         # n_elem = int(self.config.rotary_percentage * self.config.head_size)
     
         # q_roped = apply_rope(q[..., :n_elem], cos.repeat(1,2), sin.repeat(1,2))

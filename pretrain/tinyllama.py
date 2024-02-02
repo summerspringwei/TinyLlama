@@ -22,18 +22,21 @@ from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision
 from pytorch_lightning.loggers import WandbLogger
 from lit_gpt import FusedCrossEntropyLoss
 import random
+# from load_run import print_dict_recursive
 
 model_name = "tiny_LLaMA_1b"
-name = "tinyllama_1b"
+name = "tinyllama_1b_continue_c"
 out_dir = Path("out") / name
 
 # Hyperparameters
 num_of_devices = 4
-global_batch_size = 256
+global_batch_size = 128
 learning_rate = 4e-4
-micro_batch_size = 16
-max_step = 7152 * 2
-warmup_steps = 2000
+micro_batch_size = 8
+# max_step = 7152 * 2
+number_of_samples = 2000000
+max_step = number_of_samples // global_batch_size
+warmup_steps = 200
 log_step_interval = 10
 eval_iters = 10
 save_step_interval = 1000
@@ -64,13 +67,16 @@ train_data_config = [
     # ("stackexchange_sample", 1.0),
     # ("train_slim", 0.693584),
     # ("train_star", 0.306416),
-    ("AnghaBench-assembly-g-O2", 1.0),
+    # ("AnghaBench-assembly-g-O2", 1.0),
+    ("AnghaBench-C-bin", 1.0),
+    # ("AnghaBench-assembly-g-O2", 1.0)
 ]
 
 val_data_config = [
     # ("cc_2019-30_sample", 1.0),
     # ("validation", 1.0),
-    ("AnghaBench-assembly-g-O2", 1.0),
+    ("AnghaBench-C-bin", 1.0),
+    # ("AnghaBench-assembly-g-O2", 1.0)
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
@@ -120,6 +126,8 @@ def main(fabric, train_data_dir, val_data_dir, resume, init_pth_weights):
         out_dir.mkdir(parents=True, exist_ok=True)
 
     config = Config.from_name(model_name)
+    # Note, we set the block_size to 1024*3 to fit all C source code in the dataset
+    # config.block_size = 1024 * 3
 
     train_dataloader, val_dataloader = create_dataloaders(
         batch_size=micro_batch_size,
@@ -142,8 +150,8 @@ def main(fabric, train_data_dir, val_data_dir, resume, init_pth_weights):
         model = GPT(config)
         if init_pth_weights is not None:
             init_state = torch.load(init_pth_weights, map_location="cuda")
-            print(init_state)
-            model.load_state_dict(init_state)
+            # print(init_state)
+            model.load_state_dict(init_state if "model" not in init_state else init_state["model"])
         else:
             model.apply(partial(model._init_weights ,n_layer=config.n_layer))
 
@@ -161,6 +169,7 @@ def main(fabric, train_data_dir, val_data_dir, resume, init_pth_weights):
 
     if resume is True:
         resume = sorted(out_dir.glob("*.pth"))[-1]
+        print(f"Note: resume from {resume}")
     if resume :
         fabric.print(f"Resuming training from {resume}")
         fabric.load(resume, state)
@@ -231,12 +240,19 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
         targets = train_data[:, 1 : model.config.block_size + 1].contiguous()
         is_accumulating = (state["iter_num"] + 1) % gradient_accumulation_steps != 0
         with fabric.no_backward_sync(model, enabled=is_accumulating):
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits = model(input_ids)
-                loss = loss_func(logits, targets)
+            # Enable torch amx
+            # with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                # model = model.to(torch.bfloat16)
+                # print("print_dict_recursive")
+                # print_dict_recursive(model.state_dict())
+            logits = model(input_ids)
+            loss = loss_func(logits, targets)
+            
             # loss = chunked_cross_entropy(logits, targets, chunk_size=0)
-            fabric.backward(scaler.scale(loss) / gradient_accumulation_steps)
-
+            fabric.backward(loss / gradient_accumulation_steps)
+            # Enable torch amx
+            # fabric.backward(scaler.scale(loss) / gradient_accumulation_steps)
+        
         if not is_accumulating:
             fabric.clip_gradients(model, optimizer, max_norm=grad_clip)
             optimizer.step()
@@ -248,12 +264,14 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
         # input_id: B L 
         total_lengths += input_ids.size(1)
         t1 = time.perf_counter()
+        print(torch.cuda.memory_summary())
         fabric.print(
                 f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
                 f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
                 f" remaining time: {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600:.2f} hours. " 
                 # print days as well
                 f" or {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600 / 24:.2f} days. "
+                f"learning rate: {lr}"
             )
  
         monitor.on_train_batch_end(
@@ -267,11 +285,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
             train_loss = loss.item()
         )
 
-            
-            
-            
         if val_dataloader is not None and not is_accumulating and state["step_count"] % eval_step_interval == 0:
-            
             t0 = time.perf_counter()
             val_loss = validate(fabric, model, val_dataloader)
             t1 = time.perf_counter() - t0
@@ -289,6 +303,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoader) -> torch.Tensor:
     fabric.print("Validating ...")
+    # model = model.to(torch.bfloat16)
     model.eval()
 
     losses = torch.zeros(eval_iters, device=fabric.device)

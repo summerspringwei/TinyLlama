@@ -28,7 +28,8 @@ filenames_sample = [
     # "wikipedia_sample.jsonl",
     # "AnghaBench-assembly-g-O2.json",
     # "AnghaBench-assembly-g-O0.json"
-    "AnghaBench.json"
+    # "AnghaBench.json"
+    "AnghaBench_text_train_paired_assembly-g-O2_C_2K.json"
 ]
 
 filename_sets = {

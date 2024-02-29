@@ -18,6 +18,8 @@ python scripts/convert_lit_checkpoint.py --out_dir /data/TinyLlama/out/tiny_LLaM
 
 python3 scripts/convert_hf_checkpoint.py --checkpoint_dir path/to/huggingface_model --model_name xxx --dtype float32
 
+python scripts/convert_lit_checkpoint.py --out_dir out/tinyllama_1b_decompilation_assembly_c/ --checkpoint_name iter-008000-ckpt.pth --model_name tiny_LLaMA_1b
+
 python3 scripts/prepare_redpajama.py \
     --source_path /data0/xiachunwei/Dataset/RedPajama-Data-1T-Sample \
     --checkpoint_dir /home/xiachunwei/Dataset/TinyLlama-1.1B-intermediate-step-1431k-3T \
@@ -47,16 +49,19 @@ export CUDA_VISIBLE_DEVICES=2,3 && lightning run model \
     --init_pth_weights /workspace/TinyLlama/out/tinyllama_1b/iter-056000-ckpt.pth
     # --resume True
 
-export CUDA_VISIBLE_DEVICES=2,3 && lightning run model \
+# --precision="bf16-mixed" \
+
+export CUDA_VISIBLE_DEVICES=0,1 && lightning run model \
     --node-rank=0  \
     --main-address=127.0.0.1 \
     --accelerator=cuda \
     --devices=2 \
     --num-nodes=1 \
+    --main-port 29011 \
     pretrain/tinyllama.py \
-    --train_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-C-bin  \
-    --val_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench-C-bin \
-    --init_pth_weights /workspace/TinyLlama/out/tinyllama_1b/iter-056000-ckpt.pth
+    --train_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench_text_train_paired_assembly-g-O2_C_2K-bin  \
+    --val_data_dir /workspace/Dataset/decompilation-dataset/AnghaBench_text_train_paired_assembly-g-O2_C_2K-bin \
+    --init_pth_weights /workspace/TinyLlama/out/tinyllama_1b_c_assembly_scratch/iter-030000-ckpt.pth
 
 
 export CUDA_VISIBLE_DEVICES=0,1 && lightning run model \

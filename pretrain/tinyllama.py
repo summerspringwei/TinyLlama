@@ -25,16 +25,16 @@ import random
 # from load_run import print_dict_recursive
 
 model_name = "tiny_LLaMA_1b"
-name = "tinyllama_1b_continue_c"
+name = "tinyllama_1b_decompilation_assembly_c_lr1e-4"
 out_dir = Path("out") / name
 
 # Hyperparameters
-num_of_devices = 4
+num_of_devices = 2
 global_batch_size = 128
-learning_rate = 4e-4
+learning_rate = 1e-4
 micro_batch_size = 8
 # max_step = 7152 * 2
-number_of_samples = 2000000
+number_of_samples = 833213
 max_step = number_of_samples // global_batch_size
 warmup_steps = 200
 log_step_interval = 10
@@ -48,7 +48,7 @@ beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
 decay_lr = True
-min_lr = 4e-5
+min_lr = 1e-5
 
 batch_size = global_batch_size // num_of_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
@@ -68,15 +68,18 @@ train_data_config = [
     # ("train_slim", 0.693584),
     # ("train_star", 0.306416),
     # ("AnghaBench-assembly-g-O2", 1.0),
-    ("AnghaBench-C-bin", 1.0),
+    # ("AnghaBench-C-bin", 1.0),
     # ("AnghaBench-assembly-g-O2", 1.0)
+    ("AnghaBench_text_train_paired_assembly", 1.0)
 ]
 
 val_data_config = [
     # ("cc_2019-30_sample", 1.0),
     # ("validation", 1.0),
-    ("AnghaBench-C-bin", 1.0),
+    # ("AnghaBench-C-bin", 1.0),
     # ("AnghaBench-assembly-g-O2", 1.0)
+    ("AnghaBench_text_train_paired_assembly", 1.0)
+
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
@@ -85,7 +88,7 @@ wandb_logger = WandbLogger()
 
 
 def setup(
-    devices: int = 4,
+    devices: int = 2,
     train_data_dir: Path = Path("data/redpajama_sample"),
     val_data_dir: Optional[Path] = None,
     precision: Optional[str] = None,
@@ -264,7 +267,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
         # input_id: B L 
         total_lengths += input_ids.size(1)
         t1 = time.perf_counter()
-        print(torch.cuda.memory_summary())
+        # print(torch.cuda.memory_summary())
         fabric.print(
                 f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
                 f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
